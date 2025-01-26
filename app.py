@@ -35,7 +35,8 @@ def whatsapp_bot():
         logger.info(f"Received .add command with name: {name}")
         if is_name_valid(name):
             add_participant(name, from_number)
-            resp.message(f"{name} has been added to the list.")
+            send_participant_list()
+            resp.message(f"{name} has been added to the list. The current participant list has been sent to the group.")
         else:
             send_rules_message(from_number)
             resp.message("Invalid name. Please check the group description or the pinned message for the rules.")
@@ -54,7 +55,6 @@ def whatsapp_bot():
     return str(resp)
 
 def is_name_valid(name):
-    # Check if the name contains only alphabetic characters and spaces
     return name.replace(" ", "").isalpha()
 
 def send_rules_message(phone_number):
@@ -83,33 +83,43 @@ def add_participant(name, phone_number):
 
 def display_list():
     list_str = "\n".join([p['name'] for p in participants])
-    # Log the current list to the console for debugging
     logger.info(f"Current List:\n{list_str}")
+
+def get_participant_list():
+    return "\n".join([p['name'] for p in participants])
+
+def send_participant_list():
+    list_str = get_participant_list()
+    message = f"Current Participant List:\n{list_str}"
+    
+    twilio_whatsapp_number = 'whatsapp:+14155238886'  # Your Twilio WhatsApp number
+    client.messages.create(
+        body=message,
+        from_=twilio_whatsapp_number,  # Use your Twilio WhatsApp number as the sender
+        to=twilio_whatsapp_number  # Send the message to the group using the same Twilio WhatsApp number
+    )
 
 def select_winner():
     if participants:
         winner = random.choice(participants)
-        # Make the winner announcement look cool
         announce_winner(winner)
 
 def announce_winner(winner):
-    # Create a cool looking announcement message
     message = (f"🎉🎊 *Congratulations!* 🎊🎉\n\n"
                f"✨ The winner is: *{winner['name']}* ✨\n\n"
                f"Please provide your Name, Address, and Phone Number for the prize delivery! 🏆🎁")
 
-    # Log the winner announcement to the console for debugging
     logger.info(f"The winner announcement:\n{message}")
 
-    # Send the cool looking winner announcement to the WhatsApp group
-    group_phone_number = 'whatsapp:+14155238886'  # Replace with your Twilio WhatsApp group number
+    twilio_whatsapp_number = 'whatsapp:+14155238886'  # Your Twilio WhatsApp number
     client.messages.create(
         body=message,
-        from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
-        to=group_phone_number
+        from_=twilio_whatsapp_number,  # Use your Twilio WhatsApp number as the sender
+        to=twilio_whatsapp_number  # Send the message to the group using the same Twilio WhatsApp number
     )
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
+
 
 
