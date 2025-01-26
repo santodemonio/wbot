@@ -35,8 +35,12 @@ def whatsapp_bot():
         logger.info(f"Received .add command with name: {name}")
         if is_name_valid(name):
             add_participant(name, from_number)
-            send_participant_list()
-            resp.message(f"{name} has been added to the list. The current participant list has been sent to the group.")
+            try:
+                send_participant_list()
+                resp.message(f"{name} has been added to the list. The current participant list has been sent to the group.")
+            except Exception as e:
+                logger.error(f"Failed to send participant list: {e}")
+                resp.message(f"{name} has been added to the list, but there was an error sending the current participant list to the group.")
         else:
             send_rules_message(from_number)
             resp.message("Invalid name. Please check the group description or the pinned message for the rules.")
@@ -55,26 +59,33 @@ def whatsapp_bot():
     return str(resp)
 
 def is_name_valid(name):
+    # Check if the name contains only alphabetic characters and spaces
     return name.replace(" ", "").isalpha()
 
 def send_rules_message(phone_number):
     message = ("Please check the group description or the pinned message for the rules.\n"
                "If you need further assistance, please DM the admin.")
 
-    client.messages.create(
-        body=message,
-        from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
-        to=phone_number
-    )
+    try:
+        client.messages.create(
+            body=message,
+            from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
+            to=phone_number
+        )
+    except Exception as e:
+        logger.error(f"Failed to send rules message: {e}")
 
 def notify_incomplete_list(phone_number):
     message = "The participant list is not yet complete. Please wait until we have 20 names."
 
-    client.messages.create(
-        body=message,
-        from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
-        to=phone_number
-    )
+    try:
+        client.messages.create(
+            body=message,
+            from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
+            to=phone_number
+        )
+    except Exception as e:
+        logger.error(f"Failed to send incomplete list notification: {e}")
 
 def add_participant(name, phone_number):
     if len(participants) < 20:
@@ -93,11 +104,14 @@ def send_participant_list():
     message = f"Current Participant List:\n{list_str}"
     
     twilio_whatsapp_number = 'whatsapp:+14155238886'  # Your Twilio WhatsApp number
-    client.messages.create(
-        body=message,
-        from_=twilio_whatsapp_number,  # Use your Twilio WhatsApp number as the sender
-        to=twilio_whatsapp_number  # Send the message to the group using the same Twilio WhatsApp number
-    )
+    try:
+        client.messages.create(
+            body=message,
+            from_=twilio_whatsapp_number,  # Use your Twilio WhatsApp number as the sender
+            to='whatsapp:+<Your Personal WhatsApp Number>'  # Send the message to the group using a participant number
+        )
+    except Exception as e:
+        logger.error(f"Failed to send participant list: {e}")
 
 def select_winner():
     if participants:
@@ -112,14 +126,18 @@ def announce_winner(winner):
     logger.info(f"The winner announcement:\n{message}")
 
     twilio_whatsapp_number = 'whatsapp:+14155238886'  # Your Twilio WhatsApp number
-    client.messages.create(
-        body=message,
-        from_=twilio_whatsapp_number,  # Use your Twilio WhatsApp number as the sender
-        to=twilio_whatsapp_number  # Send the message to the group using the same Twilio WhatsApp number
-    )
+    try:
+        client.messages.create(
+            body=message,
+            from_=twilio_whatsapp_number,  # Use your Twilio WhatsApp number as the sender
+            to='whatsapp:+<917560885958'  # Send the message to the group using a participant number
+        )
+    except Exception as e:
+        logger.error(f"Failed to send winner announcement: {e}")
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
+
 
 
 
