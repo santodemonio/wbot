@@ -27,21 +27,31 @@ def whatsapp_bot():
     incoming_msg = request.values.get('Body', '').strip()
     from_number = request.values.get('From', '')
 
+    logger.info(f"Received message from {from_number}: {incoming_msg}")
+    resp = MessagingResponse()
+
     if incoming_msg.lower().startswith('.add '):
         name = incoming_msg[5:].strip()  # Extract the name after the ".add " command
+        logger.info(f"Received .add command with name: {name}")
         if is_name_valid(name):
             add_participant(name, from_number)
+            resp.message(f"{name} has been added to the list.")
         else:
             send_rules_message(from_number)
+            resp.message("Invalid name. Please check the group description or the pinned message for the rules.")
     elif incoming_msg.lower() == '.winner':
         if len(participants) == 20:
             select_winner()
+            resp.message("The winner has been announced in the group!")
         else:
             notify_incomplete_list(from_number)
+            resp.message("The participant list is not yet complete. Please wait until we have 20 names.")
     else:
         send_rules_message(from_number)
+        resp.message("Invalid command. Please check the group description or the pinned message for the rules.")
 
-    return str(MessagingResponse())
+    logger.info(f"Sending response: {str(resp)}")
+    return str(resp)
 
 def is_name_valid(name):
     # Check if the name contains only alphabetic characters and spaces
