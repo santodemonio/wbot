@@ -2,8 +2,8 @@ from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
 from twilio.rest import Client
 import os
-from PIL import Image, ImageDraw, ImageFont
 import random
+import logging
 
 app = Flask(__name__)
 
@@ -12,8 +12,11 @@ account_sid = os.environ.get('ACCOUNT_SID')
 auth_token = os.environ.get('AUTH_TOKEN')
 client = Client(account_sid, auth_token)
 
-names_list = []
-group_members = ['whatsapp:+1234567890', 'whatsapp:+0987654321']  # Add your group members' numbers here
+participants = []
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @app.route("/", methods=['GET'])
 def home():
@@ -24,47 +27,76 @@ def whatsapp_bot():
     incoming_msg = request.values.get('Body', '').strip()
     from_number = request.values.get('From', '')
 
-    if incoming_msg.lower() == 'done':
-        return str(MessagingResponse())
+    if incoming_msg.lower().startswith('.add '):
+        name = incoming_msg[5:].strip()  # Extract the name after the ".add " command
+        if is_name_valid(name):
+            add_participant(name, from_number)
+        else:
+            send_rules_message(from_number)
+    elif incoming_msg.lower() == '.winner':
+        if len(participants) == 20:
+            select_winner()
+        else:
+            notify_incomplete_list(from_number)
+    else:
+        send_rules_message(from_number)
 
-    add_name_and_update_list(incoming_msg, from_number)
     return str(MessagingResponse())
 
-def add_name_and_update_list(name, from_number):
-    if len(names_list) < 20:
-        names_list.append(name)
-        display_list(from_number)
-        if len(names_list) == 20:
-            select_winner()
+def is_name_valid(name):
+    # Check if the name contains only alphabetic characters and spaces
+    return name.replace(" ", "").isalpha()
 
-def display_list(from_number):
-    list_str = "\n".join(names_list)
-    create_and_send_image(f"Current List:\n{list_str}", from_number)
+def send_rules_message(phone_number):
+    message = ("Please check the group description or the pinned message for the rules.\n"
+               "If you need further assistance, please DM the admin.")
+
+    client.messages.create(
+        body=message,
+        from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
+        to=phone_number
+    )
+
+def notify_incomplete_list(phone_number):
+    message = "The participant list is not yet complete. Please wait until we have 20 names."
+
+    client.messages.create(
+        body=message,
+        from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
+        to=phone_number
+    )
+
+def add_participant(name, phone_number):
+    if len(participants) < 20:
+        participants.append({'name': name, 'phone_number': phone_number})
+        display_list()
+
+def display_list():
+    list_str = "\n".join([p['name'] for p in participants])
+    # Log the current list to the console for debugging
+    logger.info(f"Current List:\n{list_str}")
 
 def select_winner():
-    if names_list:
-        winner = random.choice(names_list)
+    if participants:
+        winner = random.choice(participants)
+        # Make the winner announcement look cool
         announce_winner(winner)
 
 def announce_winner(winner):
-    message = f"🎉 The winner is: {winner} 🎉\nPlease provide your Name, Address, and Phone Number."
-    for number in group_members:
-        create_and_send_image(message, number)
+    # Create a cool looking announcement message
+    message = (f"🎉🎊 *Congratulations!* 🎊🎉\n\n"
+               f"✨ The winner is: *{winner['name']}* ✨\n\n"
+               f"Please provide your Name, Address, and Phone Number for the prize delivery! 🏆🎁")
 
-def create_and_send_image(text, to):
-    img = Image.new('RGB', (400, 300), color='white')
-    draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype(os.path.join("static", "arial.ttf"), 24)
-    draw.text((10, 10), text, fill='black', font=font)
-    img_path = "output_image.png"
-    img.save(img_path)
-    
-    static_url = f'https://your-static-url-on-render.com/{img_path}'
-    
+    # Log the winner announcement to the console for debugging
+    logger.info(f"The winner announcement:\n{message}")
+
+    # Send the cool looking winner announcement to the WhatsApp group
+    group_phone_number = 'whatsapp:+14155238886'  # Replace with your Twilio WhatsApp group number
     client.messages.create(
-        media_url=[static_url],
-        from_='whatsapp:+14155238886',
-        to=to
+        body=message,
+        from_='whatsapp:+14155238886',  # Replace with your Twilio WhatsApp number
+        to=group_phone_number
     )
 
 if __name__ == "__main__":
