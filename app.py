@@ -15,6 +15,10 @@ client = Client(account_sid, auth_token)
 names_list = []
 group_members = ['whatsapp:+1234567890', 'whatsapp:+0987654321']  # Add your group members' numbers here
 
+@app.route("/", methods=['GET'])
+def home():
+    return "WhatsApp bot is running!"
+
 @app.route("/whatsapp", methods=['POST'])
 def whatsapp_bot():
     incoming_msg = request.values.get('Body', '').strip()
@@ -50,7 +54,7 @@ def announce_winner(winner):
 def create_and_send_image(text, to):
     img = Image.new('RGB', (400, 300), color='white')
     draw = ImageDraw.Draw(img)
-    font = ImageFont.truetype("arial.ttf", 24)
+    font = ImageFont.truetype(os.path.join("static", "arial.ttf"), 24)
     draw.text((10, 10), text, fill='black', font=font)
     img_path = "output_image.png"
     img.save(img_path)
@@ -65,4 +69,5 @@ def create_and_send_image(text, to):
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
+
 
