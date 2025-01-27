@@ -72,7 +72,7 @@ def is_name_valid(name):
     return name.replace(" ", "").isalpha()
 
 def deliver_to_group(message):
-    url = 'https://gate.whapi.cloud/sendText'  # Updated URL
+    url = 'https://gate.whapi.cloud/messages/text'  # Updated URL
     payload = {
         'session': WHAPI_SID,
         'phone': WHATSAPP_GROUP_ID,  # Send the message to the group using the Group ID
