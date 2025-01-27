@@ -74,18 +74,20 @@ def is_name_valid(name):
 def deliver_to_group(message):
     url = 'https://gate.whapi.cloud/messages/text'  # Updated URL
     payload = {
-        'session': WHAPI_SID,
-        'phone': WHATSAPP_GROUP_ID,  # Send the message to the group using the Group ID
-        'text': message
+        'to': WHATSAPP_GROUP_ID,  # Send the message to the group using the Group ID
+        'body': message  # Updated key to 'body' as per the example
     }
     headers = {
-        'Content-Type': 'application/json',
-        'Authorization': f'Bearer {WHAPI_TOKEN}'
+        'accept': 'application/json',
+        'content-type': 'application/json',
+        'authorization': f'Bearer {WHAPI_TOKEN}'
     }
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=30)
         response.raise_for_status()
+    except requests.exceptions.HTTPError as err:
+        logger.error(f"Failed to deliver message to group: {err.response.status_code} {err.response.reason}")
     except Exception as e:
         logger.error(f"Failed to deliver message to group: {e}")
 
