@@ -14,8 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 WHAPI_TOKEN = os.getenv('WHAPI_TOKEN')
-WHAPI_SID = os.getenv('WHAPI_SID')
-WHATSAPP_GROUP_ID = 'BAZGp6Be0dy0Czl4xqygfV'  # Your provided Group ID
+WHATSAPP_GROUP_ID = os.getenv('WHATSAPP_GROUP_ID')  # Replace with your environment variable
 
 @app.route("/", methods=['GET'])
 def home():
@@ -32,55 +31,48 @@ def whatsapp_bot():
     if media_type in ['audio/ogg', 'image/jpeg', 'image/png', 'image/gif']:
         # Skip processing for voice messages and images, deliver directly to the group
         deliver_to_group("Media message received.")
-        resp_msg = "Media message received and delivered to the group."
     elif incoming_msg.lower().startswith('.add '):
         name = incoming_msg[5:].strip()
         logger.info(f"Received .add command with name: {name}")
         if len(participants) >= 20:
-            resp_msg = "The participant list is complete. Try again in the next game!"
-            deliver_to_group(resp_msg)
+            deliver_to_group("The participant list is complete. Try again in the next game!")
         elif is_name_valid(name):
             add_participant(name, from_number)
-            try:
-                send_participant_list()
-                resp_msg = f"{name} has been added to the list. The current participant list has been sent to the group."
-            except Exception as e:
-                logger.error(f"Failed to send participant list: {e}")
-                resp_msg = f"{name} has been added to the list, but there was an error sending the current participant list to the group."
-            deliver_to_group(resp_msg)
+            send_participant_list()
+            deliver_to_group(f"{name} has been added to the list. The current participant list has been sent to the group.")
         else:
-            send_rules_message(from_number)
-            resp_msg = "Invalid name. Please check the group description or the pinned message for the rules."
-            deliver_to_group(resp_msg)
+            send_rules_message()
+            deliver_to_group("Invalid name. Please check the group description or the pinned message for the rules.")
     elif incoming_msg.lower() == '.winner':
         if len(participants) == 20:
             select_winner()
-            resp_msg = "The winner has been announced in the group!"
+            clear_participants()  # Clear the participant list for the new game
         else:
-            notify_incomplete_list(from_number)
-            resp_msg = "The participant list is not yet complete. Please wait until we have 20 names."
-        deliver_to_group(resp_msg)
+            notify_incomplete_list()
+            deliver_to_group("The participant list is not yet complete. Please wait until we have 20 names.")
     else:
-        send_rules_message(from_number)
-        resp_msg = "Invalid command. Please check the group description or the pinned message for the rules."
-        deliver_to_group(resp_msg)
+        send_rules_message()
+        deliver_to_group("Invalid command. Please check the group description or the pinned message for the rules.")
 
-    logger.info(f"Sending response: {resp_msg}")
-    return resp_msg
+    return "OK"
 
 def is_name_valid(name):
     return name.replace(" ", "").isalpha()
 
 def deliver_to_group(message):
-    url = 'https://gate.whapi.cloud/messages/text'  # Updated URL
+    url = f'https://graph.facebook.com/v13.0/{WHATSAPP_GROUP_ID}/messages'
     payload = {
-        'to': WHATSAPP_GROUP_ID,  # Send the message to the group using the Group ID
-        'body': message  # Updated key to 'body' as per the example
+        'messaging_product': 'whatsapp',
+        'recipient_type': 'group',
+        'to': WHATSAPP_GROUP_ID,
+        'type': 'text',
+        'text': {
+            'body': message
+        }
     }
     headers = {
-        'accept': 'application/json',
-        'content-type': 'application/json',
-        'authorization': f'Bearer {WHAPI_TOKEN}'
+        'Authorization': f'Bearer {WHAPI_TOKEN}',
+        'Content-Type': 'application/json'
     }
 
     try:
@@ -91,21 +83,20 @@ def deliver_to_group(message):
     except Exception as e:
         logger.error(f"Failed to deliver message to group: {e}")
 
-def send_rules_message(phone_number):
+def send_rules_message():
     message = ("Please check the group description or the pinned message for the rules.\n"
                "If you need further assistance, please DM the admin.")
-
     deliver_to_group(message)
 
-def notify_incomplete_list(phone_number):
+def notify_incomplete_list():
     message = "The participant list is not yet complete. Please wait until we have 20 names."
-
     deliver_to_group(message)
 
 def add_participant(name, phone_number):
     if len(participants) < 20:
         participants.append({'name': name, 'phone_number': phone_number})
-        display_list()
+        display_list()  # Logs the current list for debugging
+        send_participant_list()  # Sends the updated list to the group
 
 def display_list():
     list_str = "\n".join([p['name'] for p in participants])
@@ -125,12 +116,17 @@ def select_winner():
         announce_winner(winner)
 
 def announce_winner(winner):
+    list_str = "\n".join([f"**{p['name']}**" if p['name'] == winner['name'] else p['name'] for p in participants])
     message = (f"🎉🎊 *Congratulations!* 🎊🎉\n\n"
-               f"✨ The winner is: *{winner['name']}* ✨\n\n"
-               f"Please provide your Name, Address, and Phone Number for the prize delivery! 🏆🎁")
-
+               f"✨ The winner is: **{winner['name']}** ✨\n\n"
+               f"Please provide your Name, Address, and Phone Number for the prize delivery! 🏆🎁\n\n"
+               f"Here is the list of all participants:\n\n{list_str}")
     logger.info(f"The winner announcement:\n{message}")
     deliver_to_group(message)
+
+def clear_participants():
+    participants.clear()
+    logger.info("Participant list cleared for the new game.")
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000)
