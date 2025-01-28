@@ -14,47 +14,60 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables
 WHAPI_TOKEN = os.getenv('WHAPI_TOKEN')
-WHATSAPP_GROUP_ID = os.getenv('WHATSAPP_GROUP_ID')  # Replace with your environment variable
+WHATSAPP_GROUP_ID = os.getenv('WHATSAPP_GROUP_ID')
+VERIFY_TOKEN = os.getenv('VERIFY_TOKEN')  # Add your verify token as an environment variable
 
 @app.route("/", methods=['GET'])
 def home():
     return "WhatsApp bot is running!"
 
-@app.route("/whatsapp", methods=['POST'])
+@app.route("/whatsapp", methods=['GET', 'POST'])
 def whatsapp_bot():
-    incoming_msg = request.values.get('Body', '').strip()
-    media_type = request.values.get('MediaContentType0', '')
-    from_number = request.values.get('From', '')
+    if request.method == 'GET':
+        mode = request.args.get('hub.mode')
+        challenge = request.args.get('hub.challenge')
+        verify_token = request.args.get('hub.verify_token')
 
-    logger.info(f"Received message from {from_number}: {incoming_msg} with media type: {media_type}")
+        if mode == 'subscribe' and verify_token == VERIFY_TOKEN:
+            # Respond with the challenge token from the request
+            return challenge, 200
+        else:
+            return 'Forbidden', 403
 
-    if media_type in ['audio/ogg', 'image/jpeg', 'image/png', 'image/gif']:
-        # Skip processing for voice messages and images, deliver directly to the group
-        deliver_to_group("Media message received.")
-    elif incoming_msg.lower().startswith('.add '):
-        name = incoming_msg[5:].strip()
-        logger.info(f"Received .add command with name: {name}")
-        if len(participants) >= 20:
-            deliver_to_group("The participant list is complete. Try again in the next game!")
-        elif is_name_valid(name):
-            add_participant(name, from_number)
-            send_participant_list()
-            deliver_to_group(f"{name} has been added to the list. The current participant list has been sent to the group.")
+    if request.method == 'POST':
+        incoming_msg = request.values.get('Body', '').strip()
+        media_type = request.values.get('MediaContentType0', '')
+        from_number = request.values.get('From', '')
+
+        logger.info(f"Received message from {from_number}: {incoming_msg} with media type: {media_type}")
+
+        if media_type in ['audio/ogg', 'image/jpeg', 'image/png', 'image/gif']:
+            # Skip processing for voice messages and images, deliver directly to the group
+            deliver_to_group("Media message received.")
+        elif incoming_msg.lower().startswith('.add '):
+            name = incoming_msg[5:].strip()
+            logger.info(f"Received .add command with name: {name}")
+            if len(participants) >= 20:
+                deliver_to_group("The participant list is complete. Try again in the next game!")
+            elif is_name_valid(name):
+                add_participant(name, from_number)
+                send_participant_list()
+                deliver_to_group(f"{name} has been added to the list. The current participant list has been sent to the group.")
+            else:
+                send_rules_message()
+                deliver_to_group("Invalid name. Please check the group description or the pinned message for the rules.")
+        elif incoming_msg.lower() == '.winner':
+            if len(participants) == 20:
+                select_winner()
+                clear_participants()  # Clear the participant list for the new game
+            else:
+                notify_incomplete_list()
+                deliver_to_group("The participant list is not yet complete. Please wait until we have 20 names.")
         else:
             send_rules_message()
-            deliver_to_group("Invalid name. Please check the group description or the pinned message for the rules.")
-    elif incoming_msg.lower() == '.winner':
-        if len(participants) == 20:
-            select_winner()
-            clear_participants()  # Clear the participant list for the new game
-        else:
-            notify_incomplete_list()
-            deliver_to_group("The participant list is not yet complete. Please wait until we have 20 names.")
-    else:
-        send_rules_message()
-        deliver_to_group("Invalid command. Please check the group description or the pinned message for the rules.")
+            deliver_to_group("Invalid command. Please check the group description or the pinned message for the rules.")
 
-    return "OK"
+        return "OK", 200
 
 def is_name_valid(name):
     return name.replace(" ", "").isalpha()
