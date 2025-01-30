@@ -8,6 +8,12 @@ import os
 app = Flask(__name__)
 
 participants = []
+winner_username = None  # To store the winner's username
+pinned_messages = [
+    "Pinned Message 1: Prize List - Prize 1, Prize 2, Prize 3",
+    "Pinned Message 2: Rules - No spamming, be respectful",
+    # Add more pinned messages here
+]
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -49,16 +55,17 @@ def notify_incomplete_list():
 
 def add_participant(name, username):
     if len(participants) < 20:
+        name = name.capitalize()
         participants.append({'name': name, 'username': username})
         display_list()  # Logs the current list for debugging
         send_participant_list()  # Sends the updated list to the group
 
 def display_list():
-    list_str = "\n".join([p['name'] for p in participants])
+    list_str = "\n".join([f"{i+1}. {p['name']}" for i, p in enumerate(participants)])
     logger.info(f"Current List:\n{list_str}")
 
 def get_participant_list():
-    return "\n".join([p['name'] for p in participants])
+    return "\n".join([f"{i+1}. {p['name']}" for i, p in enumerate(participants)])
 
 def send_participant_list():
     list_str = get_participant_list()
@@ -71,24 +78,41 @@ def select_winner():
         announce_winner(winner)
 
 def announce_winner(winner):
-    list_str = "\n".join([f"**{p['name']}**" if p['name'] == winner['name'] else p['name'] for p in participants])
-    message = (f"🎉🎊 *Congratulations!* 🎊🎉\n\n"
-               f"✨ The winner is: **{winner['name']}** ✨\n\n"
+    global winner_username
+    winner_username = winner['username']  # Store the winner's username
+    list_str = "\n".join([f"{i+1}. 🏆 **{p['name']}** 🏆" if p['name'] == winner['name'] else f"{i+1}. {p['name']}" for i, p in enumerate(participants)])
+    message = (f"🎉🎊 *CONGRATULATIONS!* 🎊🎉\n\n"
+               f"✨🎉✨ The winner is: 🏆 **{winner['name']}** 🏆 ✨🎉✨\n\n"
                f"Please provide your Name, Address, and Phone Number for the prize delivery! 🏆🎁\n\n"
-               f"Here is the list of all participants:\n\n{list_str}")
+               f"Here is the list of all participants:\n\n{list_str}\n\n"
+               f"🎁 Please check the pinned message and pick one prize from the list! 🎁")
     logger.info(f"The winner announcement:\n{message}")
     deliver_to_group(message)
+    send_pinned_messages()
+
+def send_pinned_messages():
+    try:
+        for pinned_message in pinned_messages:
+            bot.send_message(chat_id=GROUP_CHAT_ID, text=f"📌 {pinned_message}", parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        logger.error(f"Failed to send pinned messages: {e}")
 
 def clear_participants():
     participants.clear()
     logger.info("Participant list cleared for the new game.")
+    display_list()
 
 def start(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Hello! I'm your bot. Type .add <name> to participate.")
 
 def handle_message(update: Update, context: CallbackContext):
+    global winner_username
     incoming_msg = update.message.text.strip()
     username = update.message.from_user.username
+
+    if username == winner_username:
+        winner_username = None  # Reset the winner username after the first message
+        return  # Ignore the first message from the winner
 
     if incoming_msg.lower().startswith('.add '):
         name = incoming_msg[5:].strip()
@@ -96,7 +120,6 @@ def handle_message(update: Update, context: CallbackContext):
             deliver_to_group("The participant list is complete. Try again in the next game!")
         elif is_name_valid(name):
             add_participant(name, username)
-            send_participant_list()
             deliver_to_group(f"{name} has been added to the list. The current participant list has been sent to the group.")
         else:
             send_rules_message()
