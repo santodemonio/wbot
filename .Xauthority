@@ -1,0 +1,3 @@
+xauth generate :99 . trusted
+xauth add $(xauth list)
+chmod 600 ~/.Xauthority
