@@ -13,62 +13,49 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
-VERIFY_TOKEN = os.getenv('VERIFY_TOKEN', 'your_default_verify_token')  # Add your verify token as an environment variable
 WHATSAPP_GROUP_ID = os.getenv('WHATSAPP_GROUP_ID', 'your_default_group_id')  # Add your WhatsApp group ID as an environment variable
 
 @app.route("/", methods=['GET'])
 def home():
     return "WhatsApp bot is running!"
 
-@app.route("/whatsapp", methods=['GET', 'POST'])
+@app.route("/whatsapp", methods=['POST'])
 def whatsapp_bot():
-    if request.method == 'GET':
-        mode = request.args.get('hub.mode')
-        challenge = request.args.get('hub.challenge')
-        verify_token = request.args.get('hub.verify_token')
+    logger.info("Received a request at /whatsapp")
+    incoming_msg = request.values.get('Body', '').strip()
+    from_number = request.values.get('From', '')
 
-        if mode == 'subscribe' and verify_token == VERIFY_TOKEN:
-            # Respond with the challenge token from the request
-            return challenge, 200
-        else:
-            return 'Forbidden', 403
+    logger.info(f"Received message from {from_number}: {incoming_msg}")
 
-    if request.method == 'POST':
-        incoming_msg = request.values.get('Body', '').strip()
-        from_number = request.values.get('From', '')
-
-        logger.info(f"Received message from {from_number}: {incoming_msg}")
-
-        if incoming_msg.lower().startswith('.add '):
-            name = incoming_msg[5:].strip()
-            logger.info(f"Received .add command with name: {name}")
-            if len(participants) >= 20:
-                deliver_to_group("The participant list is complete. Try again in the next game!")
-            elif is_name_valid(name):
-                add_participant(name, from_number)
-                send_participant_list()
-                deliver_to_group(f"{name} has been added to the list. The current participant list has been sent to the group.")
-            else:
-                send_rules_message()
-                deliver_to_group("Invalid name. Please check the group description or the pinned message for the rules.")
-        elif incoming_msg.lower() == '.winner':
-            if len(participants) == 20:
-                select_winner()
-                clear_participants()  # Clear the participant list for the new game
-            else:
-                notify_incomplete_list()
-                deliver_to_group("The participant list is not yet complete. Please wait until we have 20 names.")
+    if incoming_msg.lower().startswith('.add '):
+        name = incoming_msg[5:].strip()
+        logger.info(f"Received .add command with name: {name}")
+        if len(participants) >= 20:
+            deliver_to_group("The participant list is complete. Try again in the next game!")
+        elif is_name_valid(name):
+            add_participant(name, from_number)
+            send_participant_list()
+            deliver_to_group(f"{name} has been added to the list. The current participant list has been sent to the group.")
         else:
             send_rules_message()
-            deliver_to_group("Invalid command. Please check the group description or the pinned message for the rules.")
+            deliver_to_group("Invalid name. Please check the group description or the pinned message for the rules.")
+    elif incoming_msg.lower() == '.winner':
+        if len(participants) == 20:
+            select_winner()
+            clear_participants()  # Clear the participant list for the new game
+        else:
+            notify_incomplete_list()
+            deliver_to_group("The participant list is not yet complete. Please wait until we have 20 names.")
+    else:
+        send_rules_message()
+        deliver_to_group("Invalid command. Please check the group description or the pinned message for the rules.")
 
-        return "OK", 200
+    return "OK", 200
 
 def is_name_valid(name):
     return name.replace(" ", "").isalpha()
 
 def deliver_to_group(message):
-    # Using pywhatkit to send a message to a group using the group ID
     try:
         kit.sendwhatmsg_to_group_instantly(WHATSAPP_GROUP_ID, message)
     except Exception as e:
@@ -120,6 +107,5 @@ def clear_participants():
     logger.info("Participant list cleared for the new game.")
 
 if __name__ == "__main__":
-    # Ensure the port is correctly set for Render
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    # Hardcode the port number directly
+    app.run(host='0.0.0.0', port=5000)
