@@ -1,5 +1,5 @@
 from flask import Flask, request
-import requests
+import pywhatkit as kit
 import random
 import logging
 import os
@@ -13,9 +13,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables
-WHAPI_TOKEN = os.getenv('WHAPI_TOKEN')
-WHATSAPP_GROUP_ID = os.getenv('WHATSAPP_GROUP_ID')
-VERIFY_TOKEN = os.getenv('VERIFY_TOKEN')  # Add your verify token as an environment variable
+VERIFY_TOKEN = os.getenv('VERIFY_TOKEN', 'your_default_verify_token')  # Add your verify token as an environment variable
+WHATSAPP_GROUP_ID = os.getenv('WHATSAPP_GROUP_ID', 'your_default_group_id')  # Add your WhatsApp group ID as an environment variable
 
 @app.route("/", methods=['GET'])
 def home():
@@ -36,15 +35,11 @@ def whatsapp_bot():
 
     if request.method == 'POST':
         incoming_msg = request.values.get('Body', '').strip()
-        media_type = request.values.get('MediaContentType0', '')
         from_number = request.values.get('From', '')
 
-        logger.info(f"Received message from {from_number}: {incoming_msg} with media type: {media_type}")
+        logger.info(f"Received message from {from_number}: {incoming_msg}")
 
-        if media_type in ['audio/ogg', 'image/jpeg', 'image/png', 'image/gif']:
-            # Skip processing for voice messages and images, deliver directly to the group
-            deliver_to_group("Media message received.")
-        elif incoming_msg.lower().startswith('.add '):
+        if incoming_msg.lower().startswith('.add '):
             name = incoming_msg[5:].strip()
             logger.info(f"Received .add command with name: {name}")
             if len(participants) >= 20:
@@ -73,28 +68,11 @@ def is_name_valid(name):
     return name.replace(" ", "").isalpha()
 
 def deliver_to_group(message):
-    url = f'https://graph.facebook.com/v13.0/{WHATSAPP_GROUP_ID}/messages'
-    payload = {
-        'messaging_product': 'whatsapp',
-        'recipient_type': 'group',
-        'to': WHATSAPP_GROUP_ID,
-        'type': 'text',
-        'text': {
-            'body': message
-        }
-    }
-    headers = {
-        'Authorization': f'Bearer {WHAPI_TOKEN}',
-        'Content-Type': 'application/json'
-    }
-
+    # Using pywhatkit to send a message to a group using the group ID
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
-        response.raise_for_status()
-    except requests.exceptions.HTTPError as err:
-        logger.error(f"Failed to deliver message to group: {err.response.status_code} {err.response.reason}")
+        kit.sendwhatmsg_to_group_instantly(WHATSAPP_GROUP_ID, message)
     except Exception as e:
-        logger.error(f"Failed to deliver message to group: {e}")
+        logger.error(f"Failed to deliver message: {e}")
 
 def send_rules_message():
     message = ("Please check the group description or the pinned message for the rules.\n"
@@ -142,4 +120,6 @@ def clear_participants():
     logger.info("Participant list cleared for the new game.")
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=5000)
+    # Ensure the port is correctly set for Render
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
