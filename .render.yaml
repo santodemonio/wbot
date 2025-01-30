@@ -1,14 +1,14 @@
 services:
   - type: web
-    name: my-flask-app
+    name: whatsapp-bot
     env: python
-    plan: starter
-    buildCommand: ""
-    startCommand: gunicorn app:app
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "./start.sh"
     envVars:
       - key: VERIFY_TOKEN
-        value: your_default_verify_token
+        value: your_real_verify_token
       - key: WHATSAPP_GROUP_ID
-        value: your_default_group_id
+        value: your_real_whatsapp_group_id
       - key: PORT
-        value: 5000
+        value: "5000"
+
