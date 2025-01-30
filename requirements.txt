@@ -3,3 +3,8 @@ Werkzeug==2.2.2
 Pillow==8.4.0
 requests==2.25.1
 gunicorn==20.1.0  
+pywhatkit==5.2
+
+
+
+
