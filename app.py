@@ -29,12 +29,6 @@ bot = Bot(token=TELEGRAM_TOKEN)
 def home():
     return "Telegram bot is running!"
 
-@app.route("/telegram", methods=['POST'])
-def telegram_bot():
-    update = Update.de_json(request.get_json(force=True), bot)
-    dispatcher.process_update(update)
-    return "OK", 200
-
 def is_name_valid(name):
     return name.replace(" ", "").isalpha()
 
@@ -110,8 +104,11 @@ def handle_message(update: Update, context: CallbackContext):
     incoming_msg = update.message.text.strip()
     username = update.message.from_user.username
 
+    logger.info(f"Received message from {username}: {incoming_msg}")
+
     if username == winner_username:
         winner_username = None  # Reset the winner username after the first message
+        logger.info("Ignoring the first message from the winner.")
         return  # Ignore the first message from the winner
 
     if incoming_msg.lower().startswith('.add '):
@@ -143,9 +140,8 @@ dispatcher = updater.dispatcher
 dispatcher.add_handler(CommandHandler('start', start))
 dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
-# Start the bot
-updater.start_polling()
-
 if __name__ == "__main__":
-    # Hardcode the port number directly
+    # Start the bot using long polling
+    updater.start_polling()
     app.run(host='0.0.0.0', port=5000)
+    updater.idle()
