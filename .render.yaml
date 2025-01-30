@@ -1,14 +1,12 @@
 services:
   - type: web
-    name: whatsapp-bot
+    name: telegram-bot
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "./start.sh"
+    startCommand: "gunicorn app:app"
     envVars:
-      - key: VERIFY_TOKEN
-        value: your_real_verify_token
-      - key: WHATSAPP_GROUP_ID
-        value: your_real_whatsapp_group_id
-      - key: PORT
-        value: "5000"
+      - key: TELEGRAM_TOKEN
+        value: YOUR_TELEGRAM_BOT_TOKEN
+      - key: GROUP_CHAT_ID
+        value: YOUR_GROUP_CHAT_ID
 
