@@ -61,7 +61,7 @@ def delete(update: Update, context: CallbackContext) -> None:
 
 def show_list(update: Update, context: CallbackContext) -> None:
     if names_list:
-        reply_text = "Current list:\n" + "\n.join([f"{i+1}. {name}" for i, name in enumerate(names_list)])
+        reply_text = "Current list:\n" + "\n".join([f"{i+1}. {name}" for i, name in enumerate(names_list)])
         context.bot.send_message(chat_id=GROUP_ID, text=reply_text)
     else:
         update.message.reply_text('The list is empty.')
@@ -123,6 +123,11 @@ def cmd(update: Update, context: CallbackContext) -> None:
 def unknown(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Please refer to the pinned message or contact the admin for details.')
 
+def ignore_media(update: Update, context: CallbackContext) -> None:
+    # Ignore images and voice messages in the group chat
+    if update.message.chat.type != 'private':
+        return
+
 def main() -> None:
     """Start the bot."""
     updater = Updater(TOKEN)
@@ -136,6 +141,10 @@ def main() -> None:
     dispatcher.add_handler(CommandHandler("cmd", cmd))
     dispatcher.add_handler(MessageHandler(Filters.photo & Filters.private, pic))
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, unknown))
+    
+    # Handlers to ignore media in group chats
+    dispatcher.add_handler(MessageHandler(Filters.photo & ~Filters.private, ignore_media))
+    dispatcher.add_handler(MessageHandler(Filters.voice & ~Filters.private, ignore_media))
 
     updater.start_polling()
 
