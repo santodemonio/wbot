@@ -1,147 +1,147 @@
-from flask import Flask, request
-from telegram import Bot, Update, ParseMode
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
-import random
 import logging
+import random
 import os
+from flask import Flask
+from telegram import Update, Bot
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram import InputMediaPhoto
 
-app = Flask(__name__)
-
-participants = []
-winner_username = None  # To store the winner's username
-pinned_messages = [
-    "Pinned Message 1: Prize List - Prize 1, Prize 2, Prize 3",
-    "Pinned Message 2: Rules - No spamming, be respectful",
-    # Add more pinned messages here
-]
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Enable logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN', 'your_default_bot_token')  # Add your Telegram bot token as an environment variable
-GROUP_CHAT_ID = os.getenv('GROUP_CHAT_ID', 'your_default_group_id')     # Add your Telegram group chat ID as an environment variable
+# Global variables
+names_list = []
+images_list = []
+MAX_NAMES = 20
+GROUP_ID = os.getenv('TELEGRAM_GROUP_ID')
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-bot = Bot(token=TELEGRAM_TOKEN)
+# Flask app for health check
+app = Flask(__name__)
 
-@app.route("/", methods=['GET'])
-def home():
-    return "Telegram bot is running!"
+@app.route('/')
+def health_check():
+    return "Bot is running"
 
-def is_name_valid(name):
-    return name.replace(" ", "").isalpha()
+# Command handlers
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text('Bot has started! Use .add to add your name.')
 
-def deliver_to_group(message):
-    try:
-        bot.send_message(chat_id=GROUP_CHAT_ID, text=message, parse_mode=ParseMode.MARKDOWN)
-    except Exception as e:
-        logger.error(f"Failed to deliver message: {e}")
-
-def send_rules_message():
-    message = ("Please check the group description or the pinned message for the rules.\n"
-               "If you need further assistance, please DM the admin.")
-    deliver_to_group(message)
-
-def notify_incomplete_list():
-    message = "The participant list is not yet complete. Please wait until we have 20 names."
-    deliver_to_group(message)
-
-def add_participant(name, username):
-    if len(participants) < 20:
+def add(update: Update, context: CallbackContext) -> None:
+    if len(names_list) >= MAX_NAMES:
+        update.message.reply_text('List is full! Try next game.')
+        return
+    name = ' '.join(context.args)
+    if name:
         name = name.capitalize()
-        participants.append({'name': name, 'username': username})
-        display_list()  # Logs the current list for debugging
-        send_participant_list()  # Sends the updated list to the group
-
-def display_list():
-    list_str = "\n".join([f"{i+1}. {p['name']}" for i, p in enumerate(participants)])
-    logger.info(f"Current List:\n{list_str}")
-
-def get_participant_list():
-    return "\n".join([f"{i+1}. {p['name']}" for i, p in enumerate(participants)])
-
-def send_participant_list():
-    list_str = get_participant_list()
-    message = f"Current Participant List:\n{list_str}"
-    deliver_to_group(message)
-
-def select_winner():
-    if participants:
-        winner = random.choice(participants)
-        announce_winner(winner)
-
-def announce_winner(winner):
-    global winner_username
-    winner_username = winner['username']  # Store the winner's username
-    list_str = "\n".join([f"{i+1}. 🏆 **{p['name']}** 🏆" if p['name'] == winner['name'] else f"{i+1}. {p['name']}" for i, p in enumerate(participants)])
-    message = (f"🎉🎊 *CONGRATULATIONS!* 🎊🎉\n\n"
-               f"✨🎉✨ The winner is: 🏆 **{winner['name']}** 🏆 ✨🎉✨\n\n"
-               f"Please provide your Name, Address, and Phone Number for the prize delivery! 🏆🎁\n\n"
-               f"Here is the list of all participants:\n\n{list_str}\n\n"
-               f"🎁 Please check the pinned message and pick one prize from the list! 🎁")
-    logger.info(f"The winner announcement:\n{message}")
-    deliver_to_group(message)
-    send_pinned_messages()
-
-def send_pinned_messages():
-    try:
-        for pinned_message in pinned_messages:
-            bot.send_message(chat_id=GROUP_CHAT_ID, text=f"📌 {pinned_message}", parse_mode=ParseMode.MARKDOWN)
-    except Exception as e:
-        logger.error(f"Failed to send pinned messages: {e}")
-
-def clear_participants():
-    participants.clear()
-    logger.info("Participant list cleared for the new game.")
-    display_list()
-
-def start(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Hello! I'm your bot. Type .add <name> to participate.")
-
-def handle_message(update: Update, context: CallbackContext):
-    global winner_username
-    incoming_msg = update.message.text.strip()
-    username = update.message.from_user.username
-
-    logger.info(f"Received message from {username}: {incoming_msg}")
-
-    if username == winner_username:
-        winner_username = None  # Reset the winner username after the first message
-        logger.info("Ignoring the first message from the winner.")
-        return  # Ignore the first message from the winner
-
-    if incoming_msg.lower().startswith('.add '):
-        name = incoming_msg[5:].strip()
-        if len(participants) >= 20:
-            deliver_to_group("The participant list is complete. Try again in the next game!")
-        elif is_name_valid(name):
-            add_participant(name, username)
-            deliver_to_group(f"{name} has been added to the list. The current participant list has been sent to the group.")
+        if name not in names_list:
+            names_list.append(name)
+            update.message.reply_text(f'Added {name} to the list.')
+            show_list(update, context)
         else:
-            send_rules_message()
-            deliver_to_group("Invalid name. Please check the group description or the pinned message for the rules.")
-    elif incoming_msg.lower() == '.winner':
-        if len(participants) == 20:
-            select_winner()
-            clear_participants()  # Clear the participant list for the new game
-        else:
-            notify_incomplete_list()
-            deliver_to_group("The participant list is not yet complete. Please wait until we have 20 names.")
+            update.message.reply_text(f'{name} is already in the list.')
     else:
-        send_rules_message()
-        deliver_to_group("Invalid command. Please check the group description or the pinned message for the rules.")
+        update.message.reply_text('Usage: .add <name>')
 
-# Set up the Updater and Dispatcher
-updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
-dispatcher = updater.dispatcher
+def delete(update: Update, context: CallbackContext) -> None:
+    name = ' '.join(context.args)
+    if name:
+        name = name.capitalize()
+        if name in names_list:
+            names_list.remove(name)
+            update.message.reply_text(f'Removed {name} from the list.')
+            show_list(update, context)
+        else:
+            update.message.reply_text(f'{name} is not in the list.')
+    else:
+        update.message.reply_text('Usage: .delete <name>')
 
-# Add handlers to the dispatcher
-dispatcher.add_handler(CommandHandler('start', start))
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+def show_list(update: Update, context: CallbackContext) -> None:
+    if names_list:
+        reply_text = "Current list:\n" + "\n.join([f"{i+1}. {name}" for i, name in enumerate(names_list)])
+        context.bot.send_message(chat_id=GROUP_ID, text=reply_text)
+    else:
+        update.message.reply_text('The list is empty.')
 
-if __name__ == "__main__":
-    # Start the bot using long polling
+def pic(update: Update, context: CallbackContext) -> None:
+    if update.message.chat.type != 'private':
+        return
+    if update.message.photo:
+        photo_file_id = update.message.photo[-1].file_id
+        images_list.append(photo_file_id)
+        update.message.reply_text('Image added to the list.')
+    else:
+        update.message.reply_text('Please send an image with the .pic command.')
+
+def remove(update: Update, context: CallbackContext) -> None:
+    if update.message.chat.type != 'private':
+        return
+    image_index = int(' '.join(context.args))
+    if 0 <= image_index < len(images_list):
+        images_list.pop(image_index)
+        update.message.reply_text('Image removed from the list.')
+    else:
+        update.message.reply_text('Invalid image index. Please check the list and try again.')
+
+def winner(update: Update, context: CallbackContext) -> None:
+    if len(names_list) < MAX_NAMES:
+        update.message.reply_text('List is not full yet.')
+        return
+    winner = random.choice(names_list)
+    announcement = f'🎉 The winner is: {winner} 🎉\n\nPlease pick one prize and provide your address and phone number.'
+    highlight_list = "\n".join([f"{i+1}. {name}" if name != winner else f"{i+1}. **{name}**" for i, name in enumerate(names_list)])
+    
+    # Send announcement and list
+    context.bot.send_message(chat_id=GROUP_ID, text=f'{announcement}\n\n{highlight_list}')
+    
+    # Send images
+    media_group = [InputMediaPhoto(image_id) for image_id in images_list]
+    context.bot.send_media_group(chat_id=GROUP_ID, media=media_group)
+    
+    # Clear lists
+    names_list.clear()
+    images_list.clear()
+
+def cmd(update: Update, context: CallbackContext) -> None:
+    if update.message.chat.type != 'private':
+        return
+    commands = """
+    Available Commands:
+    - .start: Start the bot
+    - .add <name>: Add your name to the list
+    - .delete <name>: Remove your name from the list
+    - .winner: Announce the winner
+    - .pic: Send an image to the bot (in private message)
+    - .remove <index>: Remove an image from the list (in private message)
+    - .cmd: Show this list of commands (in private message)
+    """
+    update.message.reply_text(commands)
+
+def unknown(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text('Please refer to the pinned message or contact the admin for details.')
+
+def main() -> None:
+    """Start the bot."""
+    updater = Updater(TOKEN)
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CommandHandler("add", add))
+    dispatcher.add_handler(CommandHandler("delete", delete))
+    dispatcher.add_handler(CommandHandler("winner", winner))
+    dispatcher.add_handler(CommandHandler("remove", remove))
+    dispatcher.add_handler(CommandHandler("cmd", cmd))
+    dispatcher.add_handler(MessageHandler(Filters.photo & Filters.private, pic))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, unknown))
+
     updater.start_polling()
-    app.run(host='0.0.0.0', port=5000)
+
     updater.idle()
+
+if __name__ == '__main__':
+    main()
+    # Start Flask app
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
