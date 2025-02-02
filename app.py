@@ -2,8 +2,7 @@ import logging
 import random
 import os
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, CallbackContext
-from telegram.ext import filters  # Correct import for filters in v20.x
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -79,7 +78,7 @@ async def announce_winner(update: Update, context: CallbackContext) -> None:
         await display_images_group(update)
 
     await update.message.reply_text(f"Congratulations {winner}! 🎉\n\n"
-                                   "Please pick a prize from the image list above and send me your address and phone number.")
+                                    "Please pick a prize from the image list above and send me your address and phone number.")
 
     # Clear the participants list for the next game
     participants.clear()
@@ -177,8 +176,7 @@ async def main():
         raise ValueError("No BOT_TOKEN found in environment variables.")
     if not GROUP_ID:
         raise ValueError("No GROUP_ID found in environment variables.")
-    
-    # Initialize Application (instead of Updater)
+
     application = Application.builder().token(BOT_TOKEN).build()
 
     # Command handlers for group game and image list management
@@ -193,14 +191,13 @@ async def main():
     application.add_handler(MessageHandler(filters.PHOTO, add_image))  # Handles images
 
     # Fallback handler for invalid commands
-    application.add_handler(CommandHandler('.*', handle_invalid_command))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_invalid_command))
 
     # MessageHandler to ignore non-text messages (voice, video, image, etc.)
     application.add_handler(MessageHandler(filters.ALL & ~filters.TEXT, ignore_non_text_messages))
 
-    # Start the bot with polling
+    # Start polling for updates
     await application.run_polling()
-
 
 if __name__ == '__main__':
     import asyncio
