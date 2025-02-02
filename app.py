@@ -8,7 +8,7 @@ from telegram import InputMediaPhoto
 
 # Enable logging
 logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.DEBUG
 )
 logger = logging.getLogger(__name__)
 
@@ -23,14 +23,20 @@ TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 app = Flask(__name__)
 
 @app.route('/')
-def health_check():
+def index():
     return "Bot is running"
+
+@app.route('/health')
+def health_check():
+    return "Health check passed!"
 
 # Command handlers
 def start(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received /start command.")
     update.message.reply_text('Bot has started! Use .add to add your name.')
 
 def add(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received .add command.")
     if len(names_list) >= MAX_NAMES:
         update.message.reply_text('List is full! Try next game.')
         return
@@ -47,6 +53,7 @@ def add(update: Update, context: CallbackContext) -> None:
         update.message.reply_text('Usage: .add <name>')
 
 def delete(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received .delete command.")
     name = ' '.join(context.args)
     if name:
         name = name.capitalize()
@@ -60,6 +67,7 @@ def delete(update: Update, context: CallbackContext) -> None:
         update.message.reply_text('Usage: .delete <name>')
 
 def show_list(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received show_list request.")
     if names_list:
         reply_text = "Current list:\n" + "\n".join([f"{i+1}. {name}" for i, name in enumerate(names_list)])
         context.bot.send_message(chat_id=GROUP_ID, text=reply_text)
@@ -67,6 +75,7 @@ def show_list(update: Update, context: CallbackContext) -> None:
         update.message.reply_text('The list is empty.')
 
 def pic(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received .pic command.")
     if update.message.chat.type != 'private':
         return
     if update.message.photo:
@@ -77,6 +86,7 @@ def pic(update: Update, context: CallbackContext) -> None:
         update.message.reply_text('Please send an image with the .pic command.')
 
 def remove(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received .remove command.")
     if update.message.chat.type != 'private':
         return
     image_index = int(' '.join(context.args))
@@ -87,6 +97,7 @@ def remove(update: Update, context: CallbackContext) -> None:
         update.message.reply_text('Invalid image index. Please check the list and try again.')
 
 def winner(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received .winner command.")
     if len(names_list) < MAX_NAMES:
         update.message.reply_text('List is not full yet.')
         return
@@ -106,6 +117,7 @@ def winner(update: Update, context: CallbackContext) -> None:
     images_list.clear()
 
 def cmd(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received .cmd command.")
     if update.message.chat.type != 'private':
         return
     commands = """
@@ -121,15 +133,18 @@ def cmd(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(commands)
 
 def unknown(update: Update, context: CallbackContext) -> None:
+    logger.debug("Received unknown command.")
     update.message.reply_text('Please refer to the pinned message or contact the admin for details.')
 
 def ignore_media(update: Update, context: CallbackContext) -> None:
+    logger.debug("Ignoring media message.")
     # Ignore images and voice messages in the group chat
     if update.message.chat.type != 'private':
         return
 
 def main() -> None:
     """Start the bot."""
+    logger.debug("Starting the bot.")
     updater = Updater(TOKEN)
     dispatcher = updater.dispatcher
 
@@ -152,5 +167,7 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-    # Start Flask app
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+    
+    # Automatically detect the port from environment variables or default to 5000
+    port = int(os.environ.get("PORT", 5000))  # Default to 5000 if PORT is not set
+    app.run(host='0.0.0.0', port=port)  # Run the Flask app on detected port
