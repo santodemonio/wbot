@@ -3,156 +3,135 @@ import random
 import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, CallbackContext
+from flask import Flask, jsonify
+import asyncio
+
+# Initialize Flask app
+flask_app = Flask(__name__)
 
 # Set up logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# This will store the list of names for the group game
-participants = []
-MAX_PARTICIPANTS = 20
-
-# This will store the list of images (indexed)
-image_list = []
-
-# Read environment variables
+# Environment variables
 BOT_TOKEN = os.getenv('BOT_TOKEN')  # Bot token from environment variables
 GROUP_ID = os.getenv('GROUP_ID')  # Group ID from environment variables
 
-# Function to handle adding a name to the list for the group lottery
-async def add_participant(update: Update, context: CallbackContext) -> None:
+# List for participants and images
+participants = []
+MAX_PARTICIPANTS = 20
+image_list = []
+
+# Function to handle adding a name to the list
+def add_participant(update: Update, context: CallbackContext) -> None:
     if len(context.args) == 0:
-        await update.message.reply_text('Please provide a name after the .add command, like .add <your_name>.')
+        update.message.reply_text('Please provide a name after the .add command, like .add <your_name>.')
         return
     
-    # Capitalize the first letter of each word in the name
     name = ' '.join(context.args).title()
 
     if len(participants) >= MAX_PARTICIPANTS:
-        await update.message.reply_text(f'The list is full. Try again in the next game!')
+        update.message.reply_text(f'The list is full. Try again in the next game!')
         return
 
     if name in participants:
-        await update.message.reply_text(f'{name} is already in the list.')
+        update.message.reply_text(f'{name} is already in the list.')
         return
 
     participants.append(name)
-    await update.message.reply_text(f'Added {name} to the list!')
-
-    # Send the current list of participants with serial numbers
-    await display_participants(update)
-
+    update.message.reply_text(f'Added {name} to the list!')
+    display_participants(update)
 
 # Function to handle removing a name from the list
-async def remove_participant(update: Update, context: CallbackContext) -> None:
+def remove_participant(update: Update, context: CallbackContext) -> None:
     if len(context.args) == 0:
-        await update.message.reply_text('Please provide a name after the .remove command, like .remove <your_name>.')
+        update.message.reply_text('Please provide a name after the .remove command, like .remove <your_name>.')
         return
 
     name = ' '.join(context.args).title()
 
     if name not in participants:
-        await update.message.reply_text(f'{name} is not in the list.')
+        update.message.reply_text(f'{name} is not in the list.')
         return
 
     participants.remove(name)
-    await update.message.reply_text(f'Removed {name} from the list.')
+    update.message.reply_text(f'Removed {name} from the list.')
+    display_participants(update)
 
-    # Send the current list of participants with serial numbers
-    await display_participants(update)
-
-
-# Function to handle announcing the winner
-async def announce_winner(update: Update, context: CallbackContext) -> None:
+# Function to announce the winner
+def announce_winner(update: Update, context: CallbackContext) -> None:
     if len(participants) < MAX_PARTICIPANTS:
-        await update.message.reply_text('List not completed yet! There must be 20 participants before drawing a winner.')
+        update.message.reply_text('List not completed yet! There must be 20 participants before drawing a winner.')
         return
 
     winner = random.choice(participants)
-    await update.message.reply_text(f'🎉🎉🎉 The winner is... {winner}!!! 🎉🎉🎉')
+    update.message.reply_text(f'🎉🎉🎉 The winner is... {winner}!!! 🎉🎉🎉')
 
-    # Send the image list to the group and ask the winner to pick a prize and provide contact info
     if image_list:
-        # Display image list in the group (two rows)
-        await display_images_group(update)
+        display_images_group(update)
 
-    await update.message.reply_text(f"Congratulations {winner}! 🎉\n\n"
-                                    "Please pick a prize from the image list above and send me your address and phone number.")
+    update.message.reply_text(f"Congratulations {winner}! 🎉\n\nPlease pick a prize from the image list above and send me your address and phone number.")
 
-    # Clear the participants list for the next game
     participants.clear()
 
-
-# Function to display the image list in two rows in the group
-async def display_images_group(update: Update) -> None:
-    """Displays the image list in two rows in the group."""
+# Function to display the image list
+def display_images_group(update: Update) -> None:
     num_images = len(image_list)
     images_per_row = (num_images + 1) // 2  # Calculate the number of images per row
 
     first_row = "\n".join([f"Image {i+1}: {image_list[i]}" for i in range(images_per_row)])
     second_row = "\n".join([f"Image {i+1}: {image_list[i]}" for i in range(images_per_row, num_images)])
 
-    # Send both rows to the group
-    await update.message.reply_text(f"Images (Row 1):\n{first_row}")
+    update.message.reply_text(f"Images (Row 1):\n{first_row}")
     if second_row:
-        await update.message.reply_text(f"Images (Row 2):\n{second_row}")
+        update.message.reply_text(f"Images (Row 2):\n{second_row}")
 
-
-# Function to display the participants list with serial numbers
-async def display_participants(update: Update) -> None:
-    """Displays the participants list with serial numbers and capitalized names."""
+# Function to display the participants list
+def display_participants(update: Update) -> None:
     if not participants:
-        await update.message.reply_text("The participants list is empty.")
+        update.message.reply_text("The participants list is empty.")
         return
 
     participants_text = "\n".join([f"{i+1}. {participant}" for i, participant in enumerate(participants)])
-    await update.message.reply_text(f"Current Participants:\n{participants_text}")
-
+    update.message.reply_text(f"Current Participants:\n{participants_text}")
 
 # Function to handle invalid commands
-async def handle_invalid_command(update: Update, context: CallbackContext) -> None:
-    await update.message.reply_text('Invalid command! Please use .add <name>, .remove <name>, or .winner.')
-
+def handle_invalid_command(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text('Invalid command! Please use .add <name>, .remove <name>, or .winner.')
 
 # Function to handle adding an image to the list via direct message
-async def add_image(update: Update, context: CallbackContext) -> None:
-    """Handles the .pic command, adds an image to the list."""
-    if update.message.chat.id != update.message.from_user.id:  # Only allow DMs
+def add_image(update: Update, context: CallbackContext) -> None:
+    if update.message.chat.id != update.message.from_user.id:
         return
 
     if update.message.photo:
-        image_url = update.message.photo[-1].file_id  # Get the highest resolution photo
+        image_url = update.message.photo[-1].file_id
         image_list.append(image_url)
-        await update.message.reply_text(f'Added image to the list! Total images: {len(image_list)}')
+        update.message.reply_text(f'Added image to the list! Total images: {len(image_list)}')
     else:
-        await update.message.reply_text('Please send a photo to add to the list.')
-
+        update.message.reply_text('Please send a photo to add to the list.')
 
 # Function to handle deleting an image from the list
-async def delete_image(update: Update, context: CallbackContext) -> None:
-    """Handles the .delete command, removes an image from the list."""
-    if update.message.chat.id != update.message.from_user.id:  # Only allow DMs
+def delete_image(update: Update, context: CallbackContext) -> None:
+    if update.message.chat.id != update.message.from_user.id:
         return
 
     if len(context.args) == 0:
-        await update.message.reply_text('Please provide the image index to delete, like .delete <index>.')
+        update.message.reply_text('Please provide the image index to delete, like .delete <index>.')
         return
 
     try:
-        index = int(context.args[0]) - 1  # Convert to 0-based index
+        index = int(context.args[0]) - 1
         if index < 0 or index >= len(image_list):
-            await update.message.reply_text('Invalid index. Please provide a valid image index.')
+            update.message.reply_text('Invalid index. Please provide a valid image index.')
             return
         image_list.pop(index)
-        await update.message.reply_text(f'Image removed! Total images: {len(image_list)}')
+        update.message.reply_text(f'Image removed! Total images: {len(image_list)}')
     except ValueError:
-        await update.message.reply_text('Please provide a valid integer index for the image to delete.')
-
+        update.message.reply_text('Please provide a valid integer index for the image to delete.')
 
 # Function to show all available commands
-async def show_commands(update: Update, context: CallbackContext) -> None:
-    """Handles the .cmd command, shows available commands."""
+def show_commands(update: Update, context: CallbackContext) -> None:
     commands = (
         ".add <name> - Add a name to the participant list (group game)\n"
         ".remove <name> - Remove a name from the participant list (group game)\n"
@@ -161,43 +140,41 @@ async def show_commands(update: Update, context: CallbackContext) -> None:
         ".delete <index> - Delete an image from the image list by index\n"
         ".cmd - Show available commands"
     )
-    await update.message.reply_text(commands)
+    update.message.reply_text(commands)
 
-
-# Function to ignore non-text messages (like photos, videos, etc.) in the group
-async def ignore_non_text_messages(update: Update, context: CallbackContext) -> None:
-    """Ignores non-text messages (images, videos, voice, etc.)."""
+# Function to ignore non-text messages (like photos, videos, etc.)
+def ignore_non_text_messages(update: Update, context: CallbackContext) -> None:
     pass
 
+# Flask endpoint to keep the service running
+@flask_app.route("/")
+def index():
+    return jsonify({"status": "ok"})
 
+# Main asynchronous function to start the Telegram bot
 async def main():
-    """Start the bot."""
     if not BOT_TOKEN:
         raise ValueError("No BOT_TOKEN found in environment variables.")
-    if not GROUP_ID:
-        raise ValueError("No GROUP_ID found in environment variables.")
-
+    
     application = Application.builder().token(BOT_TOKEN).build()
 
-    # Command handlers for group game and image list management
     application.add_handler(CommandHandler("add", add_participant))
     application.add_handler(CommandHandler("remove", remove_participant))
     application.add_handler(CommandHandler("winner", announce_winner))
     application.add_handler(CommandHandler("cmd", show_commands))
     application.add_handler(CommandHandler("delete", delete_image))
-    application.add_handler(CommandHandler("images", display_images_group))  # To display the images
+    application.add_handler(CommandHandler("images", display_images_group))
 
-    # Command handlers for image management via direct message
-    application.add_handler(MessageHandler(filters.PHOTO, add_image))  # Handles images
-
-    # Fallback handler for invalid commands
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_invalid_command))
-
-    # MessageHandler to ignore non-text messages (voice, video, image, etc.)
+    application.add_handler(MessageHandler(filters.PHOTO, add_image))
     application.add_handler(MessageHandler(filters.ALL & ~filters.TEXT, ignore_non_text_messages))
 
-    # Start polling for updates
+    application.add_handler(CommandHandler('.*', handle_invalid_command))
+
     await application.run_polling()
 
+# Run the bot inside the Flask app
 if __name__ == '__main__':
-    main()
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())
+
+    flask_app.run(host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
