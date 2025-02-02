@@ -1,3 +1,5 @@
 web: gunicorn app:app
+worker: python app.py  # or create a separate file for the bot, like bot.py
+
 
 

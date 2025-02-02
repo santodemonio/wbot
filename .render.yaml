@@ -1,12 +1,28 @@
 services:
   - type: web
-    name: telegram-bot
+    name: telegram-flask-app
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn app:app"
+    startCommand: "gunicorn app:app"  # Gunicorn command to run Flask
     envVars:
       - key: TELEGRAM_BOT_TOKEN
-        value: YOUR_TELEGRAM_BOT_TOKEN
+        value: ${TELEGRAM_BOT_TOKEN}
       - key: TELEGRAM_GROUP_ID
-        value: YOUR_GROUP_CHAT_ID
+        value: ${TELEGRAM_GROUP_ID}
+    instanceClass: "BASIC"
+    plan: free
+
+  - type: worker
+    name: telegram-bot-worker
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python app.py"  # Runs the bot
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        value: ${TELEGRAM_BOT_TOKEN}
+      - key: TELEGRAM_GROUP_ID
+        value: ${TELEGRAM_GROUP_ID}
+    instanceClass: "BASIC"
+    plan: free
+
 
