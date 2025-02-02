@@ -1,10 +1,12 @@
 import logging
 import random
 import os
+import socket
 from flask import Flask
 from telegram import Update, Bot
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 from telegram import InputMediaPhoto
+import threading
 
 # Enable logging
 logging.basicConfig(
@@ -22,12 +24,16 @@ TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 # Flask app for health check
 app = Flask(__name__)
 
+# Define a route for the root URL ("/")
 @app.route('/')
 def index():
+    logger.debug("Root URL requested.")
     return "Bot is running"
 
+# Define a route for the health check
 @app.route('/health')
 def health_check():
+    logger.debug("Health check requested.")
     return "Health check passed!"
 
 # Command handlers
@@ -138,11 +144,24 @@ def unknown(update: Update, context: CallbackContext) -> None:
 
 def ignore_media(update: Update, context: CallbackContext) -> None:
     logger.debug("Ignoring media message.")
-    # Ignore images and voice messages in the group chat
     if update.message.chat.type != 'private':
         return
 
-def main() -> None:
+def find_available_port(start_port=5000, max_retries=10):
+    """Finds an available port starting from `start_port`."""
+    for port in range(start_port, start_port + max_retries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            result = s.connect_ex(('127.0.0.1', port))
+            if result != 0:  # Port is not in use
+                return port
+    return start_port  # Default to start port if no port is available
+
+def run_flask():
+    # Automatically find the first available port
+    port = find_available_port()
+    app.run(host='0.0.0.0', port=port)
+
+def main():
     """Start the bot."""
     logger.debug("Starting the bot.")
     updater = Updater(TOKEN)
@@ -162,12 +181,12 @@ def main() -> None:
     dispatcher.add_handler(MessageHandler(Filters.voice & ~Filters.private, ignore_media))
 
     updater.start_polling()
-
     updater.idle()
 
 if __name__ == '__main__':
+    # Run Flask in a separate thread
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.start()
+
+    # Run the Telegram bot
     main()
-    
-    # Automatically detect the port from environment variables or default to 5000
-    port = int(os.environ.get("PORT", 5000))  # Default to 5000 if PORT is not set
-    app.run(host='0.0.0.0', port=port)  # Run the Flask app on detected port
