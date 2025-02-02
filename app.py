@@ -21,20 +21,8 @@ MAX_NAMES = 20
 GROUP_ID = os.getenv('TELEGRAM_GROUP_ID')
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 
-# Flask app for health check
+# Flask app without any routes
 app = Flask(__name__)
-
-# Define a route for the root URL ("/")
-@app.route('/')
-def index():
-    logger.debug("Root URL requested.")
-    return "Bot is running"
-
-# Define a route for the health check
-@app.route('/health')
-def health_check():
-    logger.debug("Health check requested.")
-    return "Health check passed!"
 
 # Command handlers
 def start(update: Update, context: CallbackContext) -> None:
