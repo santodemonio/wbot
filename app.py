@@ -2,7 +2,8 @@ import logging
 import random
 import os
 from telegram import Update, Message
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackContext
+from telegram.ext import filters  # Updated import for filters
 
 # Set up logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -190,13 +191,13 @@ def main():
     dispatcher.add_handler(CommandHandler("images", display_images_group))  # To display the images
 
     # Command handlers for image management via direct message
-    dispatcher.add_handler(MessageHandler(Filters.photo, add_image))  # Handles images
+    dispatcher.add_handler(MessageHandler(filters.PHOTO, add_image))  # Handles images
 
     # Fallback handler for invalid commands
     dispatcher.add_handler(CommandHandler('.*', handle_invalid_command))
 
     # MessageHandler to ignore non-text messages (voice, video, image, etc.)
-    dispatcher.add_handler(MessageHandler(Filters.all & ~Filters.text, ignore_non_text_messages))
+    dispatcher.add_handler(MessageHandler(filters.ALL & ~filters.TEXT, ignore_non_text_messages))
 
     # Start polling for updates
     updater.start_polling()
