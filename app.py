@@ -7,7 +7,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 
 TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Webhook URL from environment variable
+WEBHOOK_URL = f"https://app.onrender.com/webhook"  # Webhook URL using app name
 
 name_list = []
 MAX_NAMES = 20
