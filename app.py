@@ -1,5 +1,6 @@
 import os
 import random
+import asyncio
 from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -89,7 +90,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_message))
 
     # Set webhook when bot starts
-    app.loop.run_until_complete(set_webhook())
+    asyncio.run(set_webhook())
 
     # Run Flask server
     flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Auto-detect Render port
