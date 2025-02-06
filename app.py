@@ -1,5 +1,6 @@
 import os
 import random
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
@@ -65,10 +66,20 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_message))
     
     print("Bot is running...")
-    try:
-        app.run_polling(allowed_updates=Update.ALL_TYPES)
-    except Exception as e:
-        print(f"Error: {e}")
+    
+    # Start bot polling in a separate thread
+    import threading
+    bot_thread = threading.Thread(target=lambda: app.run_polling(allowed_updates=Update.ALL_TYPES), daemon=True)
+    bot_thread.start()
+    
+    # Start Flask server to prevent Render from shutting down the app
+    flask_app = Flask(__name__)
+
+    @flask_app.route('/')
+    def home():
+        return "Telegram Bot is Running!", 200
+
+    flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Auto-detect Render port
 
 if __name__ == "__main__":
     main()
