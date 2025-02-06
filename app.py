@@ -1,5 +1,6 @@
 import os
 import random
+import asyncio
 from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -57,7 +58,8 @@ async def unknown_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.delete()
 
-def main():
+async def run_bot():
+    """Runs the Telegram bot with async polling."""
     app = Application.builder().token(TOKEN).build()
     
     app.add_handler(CommandHandler("add", add))
@@ -66,19 +68,20 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_message))
     
     print("Bot is running...")
-    
-    # Start bot polling in a separate thread
-    import threading
-    bot_thread = threading.Thread(target=lambda: app.run_polling(allowed_updates=Update.ALL_TYPES), daemon=True)
-    bot_thread.start()
-    
-    # Start Flask server to prevent Render from shutting down the app
+    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+def main():
+    """Starts both the Telegram bot and Flask server."""
     flask_app = Flask(__name__)
 
     @flask_app.route('/')
     def home():
         return "Telegram Bot is Running!", 200
 
+    # Run bot and Flask together using asyncio
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.create_task(run_bot())
     flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Auto-detect Render port
 
 if __name__ == "__main__":
