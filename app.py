@@ -1,15 +1,21 @@
 import os
 import random
-import asyncio
-from flask import Flask
+from flask import Flask, request
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
 TOKEN = os.getenv("BOT_TOKEN")
 GROUP_ID = int(os.getenv("GROUP_ID"))
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Webhook URL from environment variable
 
 name_list = []
 MAX_NAMES = 20
+
+# Initialize Flask app
+flask_app = Flask(__name__)
+
+# Initialize Telegram bot application
+app = Application.builder().token(TOKEN).build()
 
 async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -58,30 +64,34 @@ async def unknown_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.delete()
 
-async def run_bot():
-    """Runs the Telegram bot with async polling."""
-    app = Application.builder().token(TOKEN).build()
-    
+# Telegram Webhook Route
+@flask_app.route("/webhook", methods=["POST"])
+def webhook():
+    """Receives updates from Telegram and processes them."""
+    update = Update.de_json(request.get_json(), app.bot)
+    app.update_queue.put_nowait(update)
+    return "OK", 200
+
+@flask_app.route("/")
+def home():
+    """Health check route for Render."""
+    return "Telegram Bot is Running with Webhook!", 200
+
+async def set_webhook():
+    """Sets the webhook URL for Telegram."""
+    await app.bot.set_webhook(WEBHOOK_URL)
+
+def main():
+    """Starts the Flask server and sets up the Telegram Webhook."""
     app.add_handler(CommandHandler("add", add))
     app.add_handler(CommandHandler("remove", remove))
     app.add_handler(CommandHandler("winner", winner))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_message))
-    
-    print("Bot is running...")
-    await app.run_polling(allowed_updates=Update.ALL_TYPES)
 
-def main():
-    """Starts both the Telegram bot and Flask server."""
-    flask_app = Flask(__name__)
+    # Set webhook when bot starts
+    app.loop.run_until_complete(set_webhook())
 
-    @flask_app.route('/')
-    def home():
-        return "Telegram Bot is Running!", 200
-
-    # Run bot and Flask together using asyncio
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.create_task(run_bot())
+    # Run Flask server
     flask_app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))  # Auto-detect Render port
 
 if __name__ == "__main__":
